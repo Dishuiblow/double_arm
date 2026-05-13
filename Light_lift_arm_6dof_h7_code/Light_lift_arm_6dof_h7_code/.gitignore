@@ -1,0 +1,79 @@
+# 忽略编译生成的文件
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.axf
+*.srec
+*.out
+
+# 忽略 CubeMX 生成的临时文件
+*.bak
+*.log
+*.tmp
+*.swp
+*.swo
+*.swn
+*.sublime-project
+*.sublime-workspace
+*.DS_Store
+
+# 忽略 STM32CubeIDE 生成的文件
+/.settings/
+/.cproject
+/.project
+/.mxproject
+/.mxfiles
+/.cache/
+*.launch
+/.metadata/
+/Debug/
+/Release/
+/build/
+/cmake-build-debug/
+/cmake-build-release/
+
+# 忽略 keil/IAR 生成的文件（如果使用 Keil/IAR）
+/*.dep
+/*.lst
+/*.crf
+/*.plg
+/*.uvoptx
+/*.uvgui.*
+/*.bak
+/*.map
+/*.htm
+/*.dep
+/*.lnp
+/*.sct
+/*.d
+*.rteconfig
+*.sdf
+*.ewp
+*.ewt
+*.ewd
+*.eww
+*.euv
+*.euv.gui
+*.ewp.*
+*.eww.*
+*.eix
+*.dep
+*.nuvopt
+*.nuvoptx
+
+# 忽略 CubeMX 生成的 `MXProject` 目录（如果你的项目是 CubeMX 自动生成的）
+/MXProject/
+
+# 忽略 IDE 相关文件
+.vscode/
+.idea/
+*.code-workspace
+*.user
+
+# 忽略 Git 子模块或外部库
+.git/modules/
+*.orig
