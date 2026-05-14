@@ -15,19 +15,11 @@
 #define KD_MIN 0.0f   //K_D²»¿ÉÎªÁã
 #define KD_MAX 5.0f
 
+#define num 12
 typedef enum
 {
-    Motor1,
-    Motor2,
-    Motor3,
-    Motor4,
-    Motor5,
-    Motor6,
-	Motor7,
-	Motor8,
-	Motor9,
-	Motor10,
-    num
+    Motor1,Motor2,Motor3,Motor4,Motor5,Motor6,//!×ó±Û
+	Motor7,Motor8,Motor9,Motor10,Motor11,Motor12//!ÓÒ±Û
 } motor_num;
 
 typedef enum

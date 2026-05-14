@@ -60,8 +60,10 @@ extern uint8_t Is_USBget = 0;//
 
 extern int init_motor_data[6] = {0};
 
-extern volatile uint8_t USB_Rcive_Data[59];
+extern volatile uint8_t USB_Rcive_Data[117];//!14*8+5=117
+uint8_t date_to_send[112]={0};
 
+//!1-7为左臂
 uint8_t motor1_date[8]={0};
 uint8_t motor2_date[8]={0};
 uint8_t motor3_date[8]={0};
@@ -69,6 +71,14 @@ uint8_t motor4_date[8]={0};
 uint8_t motor5_date[8]={0};
 uint8_t motor6_date[8]={0};
 uint8_t motor7_date[8]={0};
+//!8-14为右臂
+uint8_t motor8_date[8]={0};
+uint8_t motor9_date[8]={0};
+uint8_t motor10_date[8]={0};
+uint8_t motor11_date[8]={0};
+uint8_t motor12_date[8]={0};
+uint8_t motor13_date[8]={0};
+uint8_t motor14_date[8]={0};//右臂夹爪
 uint8_t date_to_send[FRAME_DATA_LENGTH] = {0};//data sended to up
 
 uint8_t ControlMode = 0;
@@ -176,66 +186,59 @@ int main(void)
 	bsp_can_init();
 	
 	dm_motor_init();
-//	motor[Motor1].ctrl.mode = mit_mode;
-//	HAL_Delay(100);
-//	write_motor_data(motor[Motor1].id, 10, mit_mode, 0, 0, 0);
-//	HAL_Delay(100);
-//	write_motor_data(motor[Motor1].id, 35, CAN_BR_5M, 0, 0, 0);
+/**
+ * @brief 左右臂电机自检
+ * 
+ */
+	fdcanx_send_data(&hfdcan1,0x01,disable_data,8);
 	HAL_Delay(100);
-//	read_motor_data(motor[Motor1].id, RID_CAN_BR); 
-//	dm_motor_disable(&hfdcan1, &motor[Motor1]);
-	fdcanx_send_data(&hfdcan1, 0x04, disable_data, 8);
+	fdcanx_send_data(&hfdcan1,0x02,disable_data,8);
 	HAL_Delay(100);
-	
-	fdcanx_send_data(&hfdcan1, 0x05, disable_data, 8);
+	fdcanx_send_data(&hfdcan1,0x03,disable_data,8);
 	HAL_Delay(100);
-	
-	fdcanx_send_data(&hfdcan1, 0x06, disable_data, 8);
+	fdcanx_send_data(&hfdcan1,0x04,disable_data,8);
 	HAL_Delay(100);
-	
-//	dm_motor_disable(&hfdcan2, &motor[Motor1]);
+ 	fdcanx_send_data(&hfdcan1,0x05,disable_data,8);
 	HAL_Delay(100);
-	
-//	save_motor_data(motor[Motor1].id, 10);
-//	HAL_Delay(100);
-//	dm_motor_enable(&hfdcan1, &motor[Motor1]);
-	fdcanx_send_data(&hfdcan1, 0x04, enable_data, 8);
+	fdcanx_send_data(&hfdcan1,0x06,disable_data,8);
 	HAL_Delay(100);
-	
-//	dm_motor_enable(&hfdcan2, &motor[Motor1]);
-	fdcanx_send_data(&hfdcan1, 0x05, enable_data, 8);
+	fdcanx_send_data(&hfdcan2,0x01,disable_data,8);
 	HAL_Delay(100);
-	
-	fdcanx_send_data(&hfdcan1, 0x06, enable_data, 8);
-	HAL_Delay(200);
-	
-	
-	
-	
-	
+	fdcanx_send_data(&hfdcan2,0x02,disable_data,8);
 	HAL_Delay(100);
-	fdcanx_send_data(&hfdcan1, 0x01, disable_data, 8);
+	fdcanx_send_data(&hfdcan2,0x03,disable_data,8);
 	HAL_Delay(100);
-	
-	fdcanx_send_data(&hfdcan1, 0x02, disable_data, 8);
+	fdcanx_send_data(&hfdcan2,0x04,disable_data,8);
 	HAL_Delay(100);
-	
-	fdcanx_send_data(&hfdcan1, 0x03, disable_data, 8);
+	fdcanx_send_data(&hfdcan2,0x05,disable_data,8);
 	HAL_Delay(100);
-	
+	fdcanx_send_data(&hfdcan2,0x06,disable_data,8);
 	HAL_Delay(100);
-
-	fdcanx_send_data(&hfdcan1, 0x01, enable_data, 8);
+	//
+	fdcanx_send_data(&hfdcan1,0x01,enable_data,8);
 	HAL_Delay(100);
-	
-	fdcanx_send_data(&hfdcan1, 0x02, enable_data, 8);
+	fdcanx_send_data(&hfdcan1,0x02,enable_data,8);
 	HAL_Delay(100);
-	
-	fdcanx_send_data(&hfdcan1, 0x03, enable_data, 8);
-	HAL_Delay(200);
-	
- 
-	
+	fdcanx_send_data(&hfdcan1,0x03,enable_data,8);
+	HAL_Delay(100);
+	fdcanx_send_data(&hfdcan1,0x04,enable_data,8);
+	HAL_Delay(100);
+ 	fdcanx_send_data(&hfdcan1,0x05,enable_data,8);
+	HAL_Delay(100);
+	fdcanx_send_data(&hfdcan1,0x06,enable_data,8);
+	HAL_Delay(100);
+	fdcanx_send_data(&hfdcan2,0x01,enable_data,8);
+	HAL_Delay(100);
+	fdcanx_send_data(&hfdcan2,0x02,enable_data,8);
+	HAL_Delay(100);
+	fdcanx_send_data(&hfdcan2,0x03,enable_data,8);
+	HAL_Delay(100);
+	fdcanx_send_data(&hfdcan2,0x04,enable_data,8);
+	HAL_Delay(100);
+	fdcanx_send_data(&hfdcan2,0x05,enable_data,8);
+	HAL_Delay(100);
+	fdcanx_send_data(&hfdcan2,0x06,enable_data,8);
+	HAL_Delay(100);
 	//HAL_TIM_Base_Start_IT(&htim3);
   /* USER CODE BEGIN 2 */
 	
@@ -269,19 +272,36 @@ int main(void)
 			motor5_date[i] = USB_Rcive_Data[32+i];
 			motor6_date[i] = USB_Rcive_Data[40+i];
 			motor7_date[i] = USB_Rcive_Data[48+i];
+			motor8_date[i] = USB_Rcive_Data[56+i];
+		    motor9_date[i] = USB_Rcive_Data[64+i];
+			motor10_date[i]= USB_Rcive_Data[72+i];
+			motor11_date[i]= USB_Rcive_Data[80+i];
+            motor12_date[i]= USB_Rcive_Data[88+i];
+			motor13_date[i]= USB_Rcive_Data[96+i];
+			motor14_date[i]= USB_Rcive_Data[104+i];
 		}			
 
 		//date_to_send[32] = ControlMode++;
 		//if(ControlMode==0x17) ControlMode = 0x00;
-
 		for(int i=0;i<8;i++){
+			//左臂 CAN 电机反馈
 			date_to_send[0+i]  = motor4340[Motor1].ori_date[i];
 			date_to_send[8+i]  = motor4340[Motor2].ori_date[i];
 			date_to_send[16+i] = motor4340[Motor3].ori_date[i];
-			
 			date_to_send[24+i] = motor[Motor4].ori_date[i];
 			date_to_send[32+i] = motor[Motor5].ori_date[i];
 			date_to_send[40+i] = motor[Motor6].ori_date[i];
+			// 夹爪是PWM控制，无CAN反馈，直接用 0 占位对齐
+			date_to_send[48+i] = 0; 
+			//右臂 CAN 电机反馈
+			date_to_send[56+i] = motor4340[Motor7].ori_date[i];
+			date_to_send[64+i] = motor4340[Motor8].ori_date[i];
+			date_to_send[72+i] = motor4340[Motor9].ori_date[i];
+			date_to_send[80+i] = motor[Motor10].ori_date[i];
+			date_to_send[88+i] = motor[Motor11].ori_date[i];
+			date_to_send[96+i] = motor[Motor12].ori_date[i];
+			//右臂夹爪
+			date_to_send[104+i] = 0;
 		}
 
 		Frame_Pack(frame, date_to_send);
@@ -289,7 +309,6 @@ int main(void)
 		if(Is_USBget )
 		{
 			WS2812_Ctrl(40, 0, 0);
-			
 			for(int i=0;i<6;i++)
 			{
 				 
@@ -354,11 +373,23 @@ int main(void)
 			fdcanx_send_data(&hfdcan1, 0x05, motor5_date, 8);
 				
 			fdcanx_send_data(&hfdcan1, 0x06, motor6_date, 8);
+
+			fdcanx_send_data(&hfdcan2, 0x01, motor1_date, 8);
+				
+			fdcanx_send_data(&hfdcan2, 0x02, motor2_date, 8);
+				
+			fdcanx_send_data(&hfdcan2, 0x03, motor3_date, 8);
+//				
+			fdcanx_send_data(&hfdcan2, 0x04, motor4_date, 8);
+				
+			fdcanx_send_data(&hfdcan2, 0x05, motor5_date, 8);
+				
+			fdcanx_send_data(&hfdcan2, 0x06, motor6_date, 8);
 			
 
 				//pwm control servo
 			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, (475-motor7_date[0]));
-			
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, (475-motor14_date[0]));
 			Is_USBget = 0;
 			
 		}

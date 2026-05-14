@@ -22,6 +22,7 @@ typedef union
 	uint8_t b_val[4];
 }float_type_u;
 
+
 void dm_motor_init(void);
 
 void read_all_motor_data(motor_t *motor);

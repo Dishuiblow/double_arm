@@ -242,7 +242,10 @@ void fdcan1_rx_callback(void)
 			
 	}
 }
-
+/**
+ * @brief CAN2负责接收右臂电机反馈数据，右臂电机仍设为1-6，但在代码中映射到7-12，减少上位机修改量
+ * 
+ */
 
 void fdcan2_rx_callback(void)
 {
@@ -251,28 +254,23 @@ void fdcan2_rx_callback(void)
 	fdcanx_receive(&hfdcan2, &rec_id2, rx_data2);
 	switch (rec_id2)
 	{
+		case 0x11: // 右臂底座电机
+			for(int i=0; i<8; i++) { motor4340[Motor7].ori_date[i] = rx_data2[i]; }
+			break;
+		case 0x12:
+			for(int i=0; i<8; i++) { motor4340[Motor8].ori_date[i] = rx_data2[i]; }
+			break;
+		case 0x13:
+			for(int i=0; i<8; i++) { motor4340[Motor9].ori_date[i] = rx_data2[i]; }
+			break;
  		case 0x14: 
-			//dm_motor_fbdata(&motor[Motor1], rx_data2); receive_motor_data(&motor[Motor1], rx_data2); 
-			for(int i=0; i<8; i++)
-			{
-				motor[Motor4].ori_date[i] = rx_data2[i];
-			}
-		break;
+			for(int i=0; i<8; i++) { motor[Motor10].ori_date[i] = rx_data2[i]; }
+			break;
 		case 0x15: 
-			//dm_motor_fbdata(&motor[Motor1], rx_data2); receive_motor_data(&motor[Motor1], rx_data2); 
-			for(int i=0; i<8; i++)
-			{
-				motor[Motor5].ori_date[i] = rx_data2[i];
-			}
-		break;
+			for(int i=0; i<8; i++) { motor[Motor11].ori_date[i] = rx_data2[i]; }
+			break;
 		case 0x16: 
-			//dm_motor_fbdata(&motor[Motor1], rx_data2); receive_motor_data(&motor[Motor1], rx_data2); 
-			for(int i=0; i<8; i++)
-			{
-				motor[Motor6].ori_date[i] = rx_data2[i];
-			}
-		break;
+			for(int i=0; i<8; i++) { motor[Motor12].ori_date[i] = rx_data2[i]; }
+			break;
 	}
 }
-
-
