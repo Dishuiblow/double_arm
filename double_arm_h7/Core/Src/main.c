@@ -61,7 +61,6 @@ extern uint8_t Is_USBget = 0;//
 extern int init_motor_data[6] = {0};
 
 extern volatile uint8_t USB_Rcive_Data[117];//!14*8+5=117
-uint8_t date_to_send[112]={0};
 
 //!1-7为左臂
 uint8_t motor1_date[8]={0};
@@ -167,6 +166,8 @@ int main(void)
 	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, (475));
 	  MX_USART1_UART_Init();
   MX_UART5_Init();
+	MX_UART7_Init();
+	MX_DMA_Init();
 	HAL_Delay(200);
   /* USER CODE BEGIN 2 */
 	power(1);

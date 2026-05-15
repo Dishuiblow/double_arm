@@ -17,17 +17,28 @@ Library Manager: ArmAr.exe V6.16
 Hex Converter:   FromElf.exe V6.16
 CPU DLL:         SARMCM3.DLL V5.34.0.0
 Dialog DLL:      DCM.DLL V1.17.3.0
-Target DLL:      STLink\ST-LINKIII-KEIL_SWO.dll V3.0.8.0
+Target DLL:      CMSIS_AGDI.dll V1.32.13.0
 Dialog DLL:      TCM.DLL V1.48.0.0
  
 <h2>Project:</h2>
-D:\#6DOF_ARM\ÏÂÎ»»ú\light_lift_arm_6dof-master\Light_lift_arm_6dof_h7_code\Light_lift_arm_6dof_h7_code\MDK-ARM\CtrBoard-H7_USB.uvprojx
+D:\double_arm_01\double_arm_h7\MDK-ARM\CtrBoard-H7_USB.uvprojx
 Project File Date:  04/24/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V6.16', folder: 'D:\Keil_v5\ARM\ARMCLANG\Bin'
 Build target 'CtrBoard-H7_USB'
-"CtrBoard-H7_USB\CtrBoard-H7_USB.axf" - 0 Error(s), 0 Warning(s).
+../Core/Src/main.c(59): warning: 'extern' variable has an initializer [-Wextern-initializer]
+extern uint8_t Is_USBget = 0;//
+               ^
+../Core/Src/main.c(61): warning: 'extern' variable has an initializer [-Wextern-initializer]
+extern int init_motor_data[6] = {0};
+           ^
+2 warnings generated.
+compiling main.c...
+linking...
+Program Size: Code=37996 RO-data=1408 RW-data=268 ZI-data=17580  
+FromELF: creating hex file...
+"CtrBoard-H7_USB\CtrBoard-H7_USB.axf" - 0 Error(s), 2 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -50,7 +61,7 @@ Package Vendor: Keil
 
    * Component: ARM::CMSIS:CORE:5.4.0
       Include file:  CMSIS\Core\Include\tz_context.h
-Build Time Elapsed:  00:00:02
+Build Time Elapsed:  00:00:03
 </pre>
 </body>
 </html>

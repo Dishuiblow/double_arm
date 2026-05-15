@@ -6,7 +6,7 @@
 
 #define FRAME_HEAD 0xAA
 #define FRAME_TAIL 0x55
-#define FRAME_DATA_LENGTH 59
+#define FRAME_DATA_LENGTH 112
 #define FRAME_SIZE (1 + 1 + FRAME_DATA_LENGTH + 2 + 1) // 帧头 + 数据长度 + 数据 + 校验码 + 帧尾
 
 
