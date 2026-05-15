@@ -82,8 +82,8 @@ namespace serialport
     void SerialPortWrapper::sendData(const DataBuffer &buffer)
     {
         if (buffer.size() != DATA_SIZE)
-        { // 这里假设你发送的是 64 字节数据
-            std::cerr << "发送数据大小错误，必须为 64 字节。" << std::endl;
+        { // 这里假设你发送的是 117 字节数据
+            std::cerr << "发送数据大小错误，必须为"<< static_cast<int>(DATA_SIZE) << "字节。" << std::endl;
             return;
         }
 

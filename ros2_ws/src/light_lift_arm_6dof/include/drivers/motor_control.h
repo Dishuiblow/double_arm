@@ -7,7 +7,7 @@
 #include "communication/serial_port.h"
 #include <math.h>
 
-#define MOTOR_NUM 6
+#define MOTOR_NUM 12
 
 class MotorControl {
 public:
@@ -51,24 +51,36 @@ public:
 
     float vel_protection_level = 2;
     float tau_protection_level = 13;
+    //!电机限位，前六个为左臂，后六个为右臂
+    float desir_motor_pos_protect_max[MOTOR_NUM] = { 1.5, 1.45, 1.50, 1.57, 1.57, 1.57,
+                                                     1.5, 1.45, 1.50, 1.57, 1.57, 1.57};
+    float desir_motor_pos_protect_min[MOTOR_NUM] = {-1.5, -1.5, -1.5, -1.57, -1.57, -1.57,
+                                                    -1.5, -1.5, -1.5, -1.57, -1.57, -1.57};
 
-    float desir_motor_pos_protect_max[MOTOR_NUM] = { 1.5, 1.45, 1.50, 1.57, 1.57, 1.57};
-    float desir_motor_pos_protect_min[MOTOR_NUM] = {-1.5, -1.5, -1.5, -1.57, -1.57, -1.57};
+    float desir_motor_vel_protect_max[MOTOR_NUM] = { 2.57,  2.57,  2.57,  2.57,  2.57,  2.57,
+                                                     2.57,  2.57,  2.57,  2.57,  2.57,  2.57};
+    float desir_motor_vel_protect_min[MOTOR_NUM] = {-1.57, -2.57, -2.57, -2.57, -2.57, -2.57,
+                                                    -1.57, -2.57, -2.57, -2.57, -2.57, -2.57};
 
-    float desir_motor_vel_protect_max[MOTOR_NUM] = { 2.57,  2.57,  2.57,  2.57,  2.57,  2.57};
-    float desir_motor_vel_protect_min[MOTOR_NUM] = {-1.57, -2.57, -2.57, -2.57, -2.57, -2.57};
+    float desir_motor_tau_protect_max[MOTOR_NUM] = { 6,  11,  9, 5, 4, 3,
+                                                     6,  11,  9, 5, 4, 3};
+    float desir_motor_tau_protect_min[MOTOR_NUM] = {-6, -11, -9,-5,-4,-3,
+                                                    -6, -11, -9,-5,-4,-3};
 
-    float desir_motor_tau_protect_max[MOTOR_NUM] = { 6,  11,  9, 5, 4, 3};
-    float desir_motor_tau_protect_min[MOTOR_NUM] = {-6, -11, -9,-5,-4,-3};
+    float current_motor_pos_protect_max[MOTOR_NUM] = { 1.5, 1.5, 1.50, 1.5, 1.5, 1.57,
+                                                       1.5, 1.5, 1.50, 1.5, 1.5, 1.57};
+    float current_motor_pos_protect_min[MOTOR_NUM] = {-1.5, -1.3, -1.5, -1.5, -1.5, -1.57,
+                                                      -1.5, -1.3, -1.5, -1.5, -1.5, -1.57};
 
-    float current_motor_pos_protect_max[MOTOR_NUM] = { 1.5, 1.5, 1.50, 1.5, 1.5, 1.57};
-    float current_motor_pos_protect_min[MOTOR_NUM] = {-1.5, -1.3, -1.5, -1.5, -1.5, -1.57};
+    float current_motor_vel_protect_max[MOTOR_NUM] = { 2.57,  2.57,  2.57,  4.57,  4.57,  4.57,
+                                                       2.57,  2.57,  2.57,  4.57,  4.57,  4.57};
+    float current_motor_vel_protect_min[MOTOR_NUM] = {-1.57, -2.57, -2.57, -4.57, -4.57, -4.57,
+                                                      -1.57, -2.57, -2.57, -4.57, -4.57, -4.57};
 
-    float current_motor_vel_protect_max[MOTOR_NUM] = { 2.57,  2.57,  2.57,  4.57,  4.57,  4.57};
-    float current_motor_vel_protect_min[MOTOR_NUM] = {-1.57, -2.57, -2.57, -4.57, -4.57, -4.57};
-
-    float current_motor_tau_protect_max[MOTOR_NUM] = { 4,  8,  7, 3, 3, 3};
-    float current_motor_tau_protect_min[MOTOR_NUM] = {-4, -8, -7,-3,-3,-3};
+    float current_motor_tau_protect_max[MOTOR_NUM] = { 4,  8,  7, 3, 3, 3,
+                                                       4,  8,  7, 3, 3, 3};
+    float current_motor_tau_protect_min[MOTOR_NUM] = {-4, -8, -7,-3,-3,-3,
+                                                      -4, -8, -7,-3,-3,-3};
 
 
     float motor_impedance_tau[MOTOR_NUM] = {0};
@@ -89,8 +101,8 @@ public:
     void MitCtrl( float pos, float vel, float kp, float kd, float torq, uint8_t data[8]);
     void MitCtrl4340( float pos, float vel, float kp, float kd, float torq, uint8_t data[8]);
     void usbDataToMotorState(const std::vector<uint8_t>& data, std::vector<float>& motorState);
-    void ControlMotors(serialport::SerialPortWrapper &port,float pos[6], float vel[6], float kp[6], float kd[6], float tau[6]);
-    void ControlMotors_g(serialport::SerialPortWrapper &port,float pos[6], float vel[6], float kp[6], float kd[6], float tau[6], uint8_t grp);
+    void ControlMotors(serialport::SerialPortWrapper &port,float pos[MOTOR_NUM], float vel[MOTOR_NUM], float kp[MOTOR_NUM], float kd[MOTOR_NUM], float tau[MOTOR_NUM]);
+    void ControlMotors_g(serialport::SerialPortWrapper &port,float pos[MOTOR_NUM], float vel[MOTOR_NUM], float kp[MOTOR_NUM], float kd[MOTOR_NUM], float tau[MOTOR_NUM], uint8_t grp);
 
 
     void EnableMotors(serialport::SerialPortWrapper &port);
@@ -101,10 +113,10 @@ public:
     void updatMotorState(std::vector<float> motorState);
     void real_time_motor_protection(float pos_[MOTOR_NUM], float vel_[MOTOR_NUM], float tau_[MOTOR_NUM], serialport::SerialPortWrapper &port);
     
+    float update(float measurement,int motor_index);
+    float Butt_update(float new_value,int motor_index);
 
     void KalmanFilter(float process_noise, float measurement_noise, float estimation_error, float initial_value, float limit);
-      
-    float update(float measurement);
 
     void ButterworthFilter(float cutoff_frequency, float sampling_rate);
 
@@ -157,17 +169,23 @@ private:
     static constexpr float T_MIN_4340 = -28.0f;
     static constexpr float T_MAX_4340 = 28.0f;
 
- 
-    float Q = 1e-6; // 过程噪声协方差
-    float R = 1e-2; // 测量噪声协方差
-    float P = 1; // 估计误差协方差
-    float K; // 卡尔曼增益
-    float X = 0; // 状态估计
-    float threshold= 0.03;//阈值
+    struct KalmanState {
+        float Q = 1e-6; // 过程噪声协方差
+        float R = 1e-2; // 测量噪声协方差
+        float P = 1; // 估计误差协方差
+        float K; // 卡尔曼增益
+        float X = 0; // 状态估计
+        float threshold= 0.03;//阈值
+    };
+    struct ButterworthState {
+        float a0, a1, a2, b1, b2;
+        float x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
+    };
+    KalmanState kf_state[MOTOR_NUM];
+    ButterworthState bw_state[MOTOR_NUM];
 
-    float a0, a1, a2, b1, b2;
-    float x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
-
+    float bw_a0=0.0f,bw_a1=0.0f,bw_a2=0.0f;
+    float bw_b1=0.0f,bw_b2=0.0f;
 };
 
 #endif // MOTOR_CONTROL_H

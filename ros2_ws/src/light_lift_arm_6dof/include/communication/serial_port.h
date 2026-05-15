@@ -30,7 +30,7 @@ namespace serialport
         // 常量定义
         static constexpr uint8_t FRAME_HEAD = 0xAA;
         static constexpr uint8_t FRAME_TAIL = 0x55;
-        static constexpr uint16_t FRAME_DATA_LENGTH = 59;
+        static constexpr uint16_t FRAME_DATA_LENGTH = 112;
         static constexpr uint16_t FRAME_SIZE = 1 + 1 + FRAME_DATA_LENGTH + 2 + 1;
         // static const size_t FRAME_DATA_LENGTH = 64;
 
