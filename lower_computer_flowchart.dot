@@ -1,0 +1,83 @@
+digraph LowerComputer {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    margin=0.2,
+    pad=0.25,
+    nodesep=0.45,
+    ranksep=0.55,
+    fontname="Microsoft YaHei",
+    labelloc="t",
+    label="下位机 STM32H7 通信与电机下发流程图"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Microsoft YaHei",
+    fontsize=12,
+    color="#2F3A4A",
+    fillcolor="#F6F8FB",
+    penwidth=1.3
+  ];
+
+  edge [
+    fontname="Microsoft YaHei",
+    fontsize=10,
+    color="#4A5568",
+    arrowsize=0.8
+  ];
+
+  start [shape=oval, fillcolor="#E7F0FF", label="STM32H7 上电启动"];
+  hal [label="HAL_Init / SystemClock_Config\n启用 I-Cache / D-Cache"];
+  peripheral [label="初始化外设\nUSB CDC / GPIO / SPI\nFDCAN1 / FDCAN2 / TIM2 PWM\nUSART / UART / DMA"];
+  power [label="电源与外设上电\npower(1), power2(1), 5V enable"];
+  can_init [label="设置 CANFD 5M\nbsp_can_init()\ndm_motor_init()"];
+  motor_selfcheck [label="左右臂 12 个电机\n先失能再使能"];
+  led_ready [label="WS2812 绿色\n等待上位机帧"];
+
+  usb_irq [shape=oval, fillcolor="#FFF4D6", label="USB CDC 收到数据\nCDC_Receive_HS()"];
+  ring_write [label="RingBuffer_Write()\n写入环形缓存\nIs_USBget = 1"];
+
+  loop [shape=oval, fillcolor="#FFF4D6", label="main while(1)"];
+  process_frame [label="Process_Frame()\n从环形缓存提取完整帧"];
+  parse [shape=diamond, fillcolor="#EAF7EA", label="帧合法?\nAA + 长度 + CRC + 55"];
+  update_payload [label="写入 USB_Rcive_Data\n112 字节 payload"];
+  split_cmd [label="拆分 14 个 8 字节槽位\n左臂电机1-6\n左夹爪\n右臂电机8-13\n右夹爪"];
+
+  feedback [label="读取达妙电机反馈 ori_date\n左臂 6 电机 + 右臂 6 电机\n夹爪反馈补 0"];
+  pack_feedback [label="Frame_Pack()\n打包 112 字节反馈\n附 CRC"];
+  has_usb [shape=diamond, fillcolor="#EAF7EA", label="Is_USBget == 1?"];
+  led_red [fillcolor="#FFE8E8", label="WS2812 红色\n表示收到上位机控制帧"];
+  led_green [fillcolor="#EAF7EA", label="WS2812 绿色\n表示未收到新帧/等待"];
+
+  init_guard [label="init_motor_data 保护\n启动初期清零部分反馈"];
+  send_feedback [label="vofa_transmit(frame)\n通过 USB 回传上位机"];
+  can_left [label="FDCAN1 下发左臂\nID 0x01-0x06\nmotor1_date ~ motor6_date"];
+  can_right [label="FDCAN2 下发右臂\nID 0x01-0x06\n应使用 motor8_date ~ motor13_date"];
+  pwm [label="TIM2 PWM 控制夹爪\nCH1 左夹爪\nCH3 右夹爪"];
+  clear_flag [label="Is_USBget = 0"];
+
+  risk1 [shape=note, fillcolor="#FFF0F0", color="#C53030", label="当前高风险点 1\ncrc16.c 中 USB_Rcive_Data 定义为 64\n但协议 payload 是 112 字节"];
+  risk2 [shape=note, fillcolor="#FFF0F0", color="#C53030", label="当前高风险点 2\n右臂 FDCAN2 下发处曾复用左臂 motor1-6 数据\n应改为 motor8-13"];
+  risk3 [shape=note, fillcolor="#FFF8DB", color="#B7791F", label="建议扩展\n增加通信超时 watchdog\n超时自动失能 12 电机"];
+
+  start -> hal -> peripheral -> power -> can_init -> motor_selfcheck -> led_ready -> loop;
+
+  usb_irq -> ring_write -> loop [style=dashed, label="中断/回调路径"];
+
+  loop -> process_frame -> parse;
+  parse -> update_payload [label="合法"];
+  parse -> feedback [label="非法/不完整"];
+  update_payload -> split_cmd -> feedback;
+  feedback -> pack_feedback -> has_usb;
+  has_usb -> led_red [label="是"];
+  has_usb -> led_green [label="否"];
+  led_green -> loop;
+
+  led_red -> init_guard -> send_feedback -> can_left -> can_right -> pwm -> clear_flag -> loop;
+
+  update_payload -> risk1 [style=dashed];
+  can_right -> risk2 [style=dashed];
+  has_usb -> risk3 [style=dashed];
+}

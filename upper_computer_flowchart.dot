@@ -1,0 +1,103 @@
+digraph UpperComputer {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    margin=0.2,
+    pad=0.25,
+    nodesep=0.45,
+    ranksep=0.55,
+    fontname="Microsoft YaHei",
+    labelloc="t",
+    label="上位机 ROS2 控制框架流程图"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Microsoft YaHei",
+    fontsize=12,
+    color="#2F3A4A",
+    fillcolor="#F6F8FB",
+    penwidth=1.3
+  ];
+
+  edge [
+    fontname="Microsoft YaHei",
+    fontsize=10,
+    color="#4A5568",
+    arrowsize=0.8
+  ];
+
+  start [shape=oval, fillcolor="#E7F0FF", label="启动 light_lift_arm_6dof_node"];
+  serial_init [label="打开 /dev/ttyACM0\n启动串口接收线程"];
+  ros_init [label="创建 ROS2 发布/订阅\njoint_states / desir_joint_states\ncurrent pose/twist/wrench\n目标位姿/目标关节/cmd"];
+  enable [label="发送 EnableMotors\n电机进入可控状态"];
+  mode_init [label="设置初始模式\n当前代码默认为 AutoServo"];
+  timer [shape=oval, fillcolor="#FFF4D6", label="1ms 定时循环\npublish_joint_states()"];
+
+  read_serial [label="读取串口反馈帧\nparseFrame -> motorState"];
+  motor_state [label="解析 12 电机反馈\n位置 / 速度 / 力矩"];
+  protect [shape=diamond, fillcolor="#FFE8E8", label="实时保护检查\n位置/速度/力矩是否越界?"];
+  disable [fillcolor="#FFE0E0", label="DisableMotors\n进入故障/等待人工处理"];
+  arm_update [label="更新机械臂状态\n关节位置/速度/力矩"];
+  target_source [shape=diamond, fillcolor="#EAF7EA", label="目标来源"];
+
+  internal_traj [label="内部末端轨迹\nupdate_end_effector_trajectory()"];
+  topic_pose [label="topic_control_desir_end_pos\n更新期望末端位姿/夹爪"];
+  topic_joint [label="topic_control_desir_joint_state\n更新期望关节角"];
+  cmd_topic [label="cmd_topic\n切换 Gravity/Impdence/Gohome 等模式"];
+
+  kdl [label="KDL 实时计算\nJacobian / FK / IK / 逆动力学"];
+  state_machine [shape=diamond, fillcolor="#EAF7EA", label="ArmState::run()\n按当前模式分发"];
+
+  auto_servo [label="AutoServo\nIK + 重力补偿 + PID/MIT"];
+  manual [label="ManualServo_STSMC\n超螺旋滑模力矩控制"];
+  impedance [label="Impdence\n末端阻抗 + 负载估计"];
+  admittance [label="Admittance\n导纳/接触力控制"];
+  gravity [label="Gravity\n纯重力补偿"];
+  joint_auto [label="JointAutoServo\n关节空间目标跟踪"];
+  planning [label="Planning / Gohome / Zero\n插值规划 / 回零 / 设置零点"];
+
+  pack [label="MotorControl 打包指令\nMIT: pos/vel/kp/kd/tau\n夹爪 PWM 占位"];
+  send [label="串口发送 117 字节帧\nAA + len + 112 payload + CRC + 55"];
+  publish [label="发布 ROS2 状态\njoint_states / desir_joint_states\n末端状态与 TF 当前多处待启用"];
+
+  shutdown [shape=oval, fillcolor="#E7F0FF", label="SIGINT/退出\nDisableMotors + stopReceiving"];
+
+  start -> serial_init -> ros_init -> enable -> mode_init -> timer;
+  timer -> read_serial -> motor_state -> protect;
+  protect -> disable [label="是"];
+  protect -> arm_update [label="否"];
+  disable -> publish [style=dashed, label="发布/记录故障"];
+  arm_update -> target_source;
+
+  target_source -> internal_traj [label="内部轨迹"];
+  target_source -> topic_pose [label="末端话题"];
+  target_source -> topic_joint [label="关节话题"];
+  target_source -> cmd_topic [label="命令话题"];
+
+  internal_traj -> kdl;
+  topic_pose -> kdl;
+  topic_joint -> kdl;
+  cmd_topic -> state_machine;
+  kdl -> state_machine;
+
+  state_machine -> auto_servo;
+  state_machine -> manual;
+  state_machine -> impedance;
+  state_machine -> admittance;
+  state_machine -> gravity;
+  state_machine -> joint_auto;
+  state_machine -> planning;
+
+  auto_servo -> pack;
+  manual -> pack;
+  impedance -> pack;
+  admittance -> pack;
+  gravity -> pack;
+  joint_auto -> pack;
+  planning -> pack;
+
+  pack -> send -> publish -> timer;
+  timer -> shutdown [style=dashed, label="Ctrl+C"];
+}

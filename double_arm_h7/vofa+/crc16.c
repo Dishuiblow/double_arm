@@ -8,7 +8,7 @@ volatile uint16_t rx_write_index = 0;
 volatile uint16_t rx_read_index = 0;  
 uint8_t frame_buffer[FRAME_SIZE];     
 
-volatile uint8_t USB_Rcive_Data[64]; 
+volatile uint8_t USB_Rcive_Data[FRAME_SIZE]; 
 
 
 
