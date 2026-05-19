@@ -1,0 +1,655 @@
+\documentclass[UTF8,a4paper,11pt]{ctexart}
+
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{caption}
+
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{codeframe}{RGB}{220,220,220}
+\definecolor{keywordblue}{RGB}{0,78,150}
+\definecolor{commentgreen}{RGB}{0,120,70}
+\definecolor{stringred}{RGB}{160,40,40}
+
+\lstdefinestyle{codestyle}{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  breaklines=true,
+  tabsize=2,
+  showstringspaces=false,
+  keywordstyle=\color{keywordblue}\bfseries,
+  commentstyle=\color{commentgreen},
+  stringstyle=\color{stringred}
+}
+\lstset{style=codestyle}
+
+\title{双臂机器人上位机/下位机代码按优先级改造清单}
+\author{Codex 静态代码审阅整理}
+\date{2026年5月19日}
+
+\begin{document}
+\maketitle
+
+\section*{说明}
+
+本文基于当前工程静态阅读整理，目标是把现有单臂控制代码可靠扩展为双臂控制系统。优先级定义如下：
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{P0：必须先修。} 存在越界、错误下发、急停失效或会直接导致双臂不可控的问题。
+  \item \textbf{P1：双臂主链路必需。} 不修也许能单臂运行，但无法稳定支持左右臂独立控制。
+  \item \textbf{P2：可维护性和调试效率。} 不一定立刻阻塞实机，但会显著增加调试成本。
+  \item \textbf{P3：体验和工程化完善。} 适合在主链路稳定后补齐。
+\end{itemize}
+
+\section{总体结论}
+
+当前项目已经具备上位机 ROS2 控制循环、状态机、KDL 运动学/动力学、USB 串口通信、下位机 USB CDC 收发、FDCAN 下发和夹爪 PWM 控制等基础能力。主要风险集中在：下位机接收缓冲区长度不一致、右臂 CAN 下发复用了左臂数据、上位机控制层大量接口仍按 6 轴单臂编写、命令入口和轨迹来源未统一、诊断与安全闭环不足。
+
+\section{P0：必须先修的问题}
+
+\subsection{P0-1 修正下位机 USB 接收数据缓存越界}
+
+\textbf{现象：} \verb|crc16.c| 中定义 \verb|USB_Rcive_Data[64]|，但帧数据长度已经是 112 字节；\verb|main.c| 又声明为 117 字节并访问到 \verb|USB_Rcive_Data[104+i]|。这会造成内存越界，属于实机运行前必须修复的问题。
+
+\textbf{修改位置：}
+\begin{itemize}[leftmargin=2em]
+  \item \verb|double_arm_h7/vofa+/crc16.c|
+  \item \verb|double_arm_h7/Core/Src/main.c|
+\end{itemize}
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C]
+// double_arm_h7/vofa+/crc16.c
+// 原代码:
+// volatile uint8_t USB_Rcive_Data[64];
+
+#include "crc16.h"
+
+volatile uint8_t USB_Rcive_Data[FRAME_DATA_LENGTH] = {0};
+\end{lstlisting}
+
+\begin{lstlisting}[language=C]
+// double_arm_h7/Core/Src/main.c
+// 原代码:
+// extern volatile uint8_t USB_Rcive_Data[117];
+
+#include "crc16.h"
+
+extern volatile uint8_t USB_Rcive_Data[FRAME_DATA_LENGTH];
+\end{lstlisting}
+
+\textbf{验证方式：} 编译下位机工程，确认无重复定义/数组大小冲突；上位机持续发送 117 字节帧，观察下位机不 HardFault，左右臂 14 个 8 字节槽位均能正确更新。
+
+\subsection{P0-2 修正右臂 CAN 下发复用左臂控制数据}
+
+\textbf{现象：} 下位机主循环中右臂 FDCAN2 当前仍下发 \verb|motor1_date| 到 \verb|motor6_date|，没有使用 \verb|motor8_date| 到 \verb|motor13_date|。这会导致右臂收到左臂指令，是双臂实机的高风险问题。
+
+\textbf{修改位置：} \verb|double_arm_h7/Core/Src/main.c|
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C]
+// 左臂: FDCAN1, 电机 1-6
+fdcanx_send_data(&hfdcan1, 0x01, motor1_date, 8);
+fdcanx_send_data(&hfdcan1, 0x02, motor2_date, 8);
+fdcanx_send_data(&hfdcan1, 0x03, motor3_date, 8);
+fdcanx_send_data(&hfdcan1, 0x04, motor4_date, 8);
+fdcanx_send_data(&hfdcan1, 0x05, motor5_date, 8);
+fdcanx_send_data(&hfdcan1, 0x06, motor6_date, 8);
+
+// 右臂: FDCAN2, 电机 8-13
+fdcanx_send_data(&hfdcan2, 0x01, motor8_date, 8);
+fdcanx_send_data(&hfdcan2, 0x02, motor9_date, 8);
+fdcanx_send_data(&hfdcan2, 0x03, motor10_date, 8);
+fdcanx_send_data(&hfdcan2, 0x04, motor11_date, 8);
+fdcanx_send_data(&hfdcan2, 0x05, motor12_date, 8);
+fdcanx_send_data(&hfdcan2, 0x06, motor13_date, 8);
+\end{lstlisting}
+
+\textbf{验证方式：} 上位机分别只改变左臂/右臂某一关节指令，使用 CAN 分析仪或电机反馈确认只有对应总线对应电机发生变化。
+
+\subsection{P0-3 让实时保护真正急停位置越界}
+
+\textbf{现象：} 上位机 \verb|real_time_motor_protection| 中速度和力矩越界会调用 \verb|DisableMotors|，但位置越界分支里失能动作被注释。机械臂位置越界时只打印警告，不会真正关断电机。
+
+\textbf{修改位置：} \verb|ros2_ws_dbarm/src/light_lift_arm_6dof/src/drivers/motor_control.cpp|
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+// 建议抽出统一急停函数，避免多个分支逻辑不一致。
+void MotorControl::emergencyStop(serialport::SerialPortWrapper &port,
+                                 const std::string &reason,
+                                 int motor_index)
+{
+    std::cerr << "[EMERGENCY STOP] motor " << motor_index
+              << ": " << reason << std::endl;
+    for (size_t retry = 0; retry < 10; ++retry) {
+        DisableMotors(port);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+// 位置越界分支中调用:
+if (pos_dengerous_cout[i] >= pos_max_dengerous_cout) {
+    emergencyStop(port, "position out of range", static_cast<int>(i));
+    bad_motor[i] = 1;
+    out_flag = true;
+}
+\end{lstlisting}
+
+\textbf{同步修改头文件：}
+\begin{lstlisting}[language=C++]
+// motor_control.h
+void emergencyStop(serialport::SerialPortWrapper &port,
+                   const std::string &reason,
+                   int motor_index);
+\end{lstlisting}
+
+\textbf{验证方式：} 人为设置很小的位置保护上限，运行后确认触发后电机被失能，而不是只打印日志。
+
+\subsection{P0-4 修正状态切换后的局部初始化状态没有回写}
+
+\textbf{现象：} \verb|ArmState::run| 中把 \verb|is_init_end| 复制到局部变量 \verb|initialized|，但在切换模式时没有统一复位初始化标志。结果是部分模式切换后可能沿用旧目标/旧增益/旧期望，导致突跳。
+
+\textbf{修改位置：} \verb|ros2_ws_dbarm/src/light_lift_arm_6dof/src/controllers/state_machine.cpp|
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+void ArmState::modeTransition(State newState)
+{
+    if (currentState == newState) {
+        return;
+    }
+
+    currentState = newState;
+
+    // 模式切换时强制重新初始化目标，避免沿用上一模式的期望值。
+    is_init_end = false;
+    is_init_joint = false;
+    is_run_planning = false;
+    is_go_home = false;
+
+    if (newState == State::Zero) {
+        is_init_end = true;
+        is_init_joint = true;
+    }
+    if (newState == State::Gohome) {
+        is_go_home = true;
+    }
+}
+\end{lstlisting}
+
+\textbf{验证方式：} 在 AutoServo、Gravity、Impdence、JointAutoServo 之间多次切换，确认第一次进入新模式时会重新初始化期望位置，不出现旧轨迹突跳。
+
+\section{P1：双臂主链路必需改造}
+
+\subsection{P1-1 上位机电机控制接口从 6 轴扩展为 12 轴 + 2 夹爪}
+
+\textbf{现象：} 下位机协议已经预留 112 字节，适合 14 个 8 字节槽位；但上位机 \verb|ControlMotors| 仍主要按 6 个电机打包，右臂数据没有完整填入。
+
+\textbf{修改位置：}
+\begin{itemize}[leftmargin=2em]
+  \item \verb|motor_control.h|
+  \item \verb|motor_control.cpp|
+\end{itemize}
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+// motor_control.h
+static constexpr size_t ARM_DOF = 6;
+static constexpr size_t ARM_COUNT = 2;
+static constexpr size_t MOTOR_NUM = ARM_DOF * ARM_COUNT;
+static constexpr size_t SLOT_SIZE = 8;
+static constexpr size_t LEFT_GRIPPER_SLOT = 6;   // bytes 48-55
+static constexpr size_t RIGHT_GRIPPER_SLOT = 13; // bytes 104-111
+
+struct ArmCommand {
+    float pos[ARM_DOF] = {0};
+    float vel[ARM_DOF] = {0};
+    float kp[ARM_DOF] = {0};
+    float kd[ARM_DOF] = {0};
+    float tau[ARM_DOF] = {0};
+    uint8_t gripper = 0;
+};
+
+void ControlDualArm(serialport::SerialPortWrapper &port,
+                    const ArmCommand &left,
+                    const ArmCommand &right);
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++]
+// motor_control.cpp
+static size_t commandOffset(size_t motor_index)
+{
+    size_t offset = motor_index * SLOT_SIZE;
+    if (motor_index >= ARM_DOF) {
+        offset += SLOT_SIZE; // skip left gripper slot
+    }
+    return offset;
+}
+
+void MotorControl::ControlDualArm(serialport::SerialPortWrapper &port,
+                                  const ArmCommand &left,
+                                  const ArmCommand &right)
+{
+    std::vector<uint8_t> data(port.FRAME_DATA_LENGTH, 0);
+    uint8_t motor_data[8] = {0};
+
+    const ArmCommand arms[2] = {left, right};
+
+    for (size_t arm = 0; arm < ARM_COUNT; ++arm) {
+        for (size_t joint = 0; joint < ARM_DOF; ++joint) {
+            const size_t global = arm * ARM_DOF + joint;
+            if (joint < 3) {
+                MitCtrl4340(arms[arm].pos[joint], arms[arm].vel[joint],
+                            arms[arm].kp[joint], arms[arm].kd[joint],
+                            arms[arm].tau[joint], motor_data);
+            } else {
+                MitCtrl(arms[arm].pos[joint], arms[arm].vel[joint],
+                        arms[arm].kp[joint], arms[arm].kd[joint],
+                        arms[arm].tau[joint], motor_data);
+            }
+
+            const size_t offset = commandOffset(global);
+            std::copy(motor_data, motor_data + SLOT_SIZE, data.begin() + offset);
+        }
+    }
+
+    data[LEFT_GRIPPER_SLOT * SLOT_SIZE] = left.gripper;
+    data[RIGHT_GRIPPER_SLOT * SLOT_SIZE] = right.gripper;
+
+    std::vector<uint8_t> frame;
+    port.packFrame(data, frame);
+    port.sendData(frame);
+}
+\end{lstlisting}
+
+\textbf{验证方式：} 构造左右臂不同位置命令，打印 112 字节 payload，确认左臂在 0--47，左夹爪在 48，右臂在 56--103，右夹爪在 104。
+
+\subsection{P1-2 抽象左右臂状态，避免所有控制器直接依赖单个 \texttt{LlArm6dof}}
+
+\textbf{现象：} 当前 KDL 模型只取 \verb|base_link -> link6| 单链，状态机也只维护一套当前关节和期望关节。要做双臂，建议先把左右臂状态封装成两个实例。
+
+\textbf{修改位置：}
+\begin{itemize}[leftmargin=2em]
+  \item 新增 \verb|dual_arm_system.h/.cpp|
+  \item 改造 \verb|light_lift_arm_6dof_node.cpp|
+\end{itemize}
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+enum class ArmSide { Left, Right };
+
+struct ArmRuntime {
+    LlArm6dof model;
+    ArmState state_machine;
+    MotorControl::ArmCommand command;
+    std::string ns;
+};
+
+class DualArmSystem {
+public:
+    ArmRuntime left{"left"};
+    ArmRuntime right{"right"};
+
+    ArmRuntime& arm(ArmSide side)
+    {
+        return side == ArmSide::Left ? left : right;
+    }
+
+    void updateFromMotorState(const MotorControl &motor)
+    {
+        left.model.updatArmState(motor.current_motor_pos,
+                                 motor.current_motor_vel,
+                                 motor.current_motor_tau);
+
+        right.model.updatArmState(motor.current_motor_pos + 6,
+                                  motor.current_motor_vel + 6,
+                                  motor.current_motor_tau + 6);
+    }
+};
+\end{lstlisting}
+
+\textbf{验证方式：} 上位机收到 12 电机反馈后，左臂 joint state 使用索引 0--5，右臂 joint state 使用索引 6--11，互不覆盖。
+
+\subsection{P1-3 统一 ROS2 话题命名空间}
+
+\textbf{现象：} 当前话题只有一套，例如 \verb|topic_control_desir_joint_state|。双臂需要左右臂独立控制，同时保留一个双臂协调命令入口。
+
+\textbf{建议话题：}
+\begin{longtable}{lll}
+\toprule
+用途 & 左臂 & 右臂 \\
+\midrule
+当前关节 & \verb|/left_arm/joint_states| & \verb|/right_arm/joint_states| \\
+期望关节 & \verb|/left_arm/desir_joint_states| & \verb|/right_arm/desir_joint_states| \\
+末端目标 & \verb|/left_arm/target_pose| & \verb|/right_arm/target_pose| \\
+命令入口 & \verb|/left_arm/cmd| & \verb|/right_arm/cmd| \\
+\bottomrule
+\end{longtable}
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+auto makeJointPublisher =
+    [this](const std::string &name) {
+        return this->create_publisher<sensor_msgs::msg::JointState>(
+            name + "/joint_states", 10);
+    };
+
+left_joint_pub_ = makeJointPublisher("/left_arm");
+right_joint_pub_ = makeJointPublisher("/right_arm");
+
+left_pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>(
+    "/left_arm/target_pose", 10,
+    [this](geometry_msgs::msg::Pose::SharedPtr msg) {
+        handleTargetPose(ArmSide::Left, *msg);
+    });
+
+right_pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>(
+    "/right_arm/target_pose", 10,
+    [this](geometry_msgs::msg::Pose::SharedPtr msg) {
+        handleTargetPose(ArmSide::Right, *msg);
+    });
+\end{lstlisting}
+
+\textbf{验证方式：} 使用 \verb|ros2 topic list| 确认左右臂话题分离；分别发布左右臂目标，确认只影响对应臂。
+
+\subsection{P1-4 统一命令解析，补齐全部状态入口}
+
+\textbf{现象：} 当前 \verb|cmd_callback| 只处理 Gravity、Impdence、JointAutoServo。建议把字符串映射集中管理，避免模式名拼写错误和漏分支。
+
+\textbf{修改位置：} \verb|light_lift_arm_6dof_node.cpp|
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+std::optional<State> parseStateCommand(const std::string &cmd)
+{
+    static const std::unordered_map<std::string, State> states = {
+        {"AutoServo", State::AutoServo},
+        {"ManualServo", State::ManualServo},
+        {"Impdence", State::Impdence},
+        {"Admittance", State::Admittance},
+        {"Gravity", State::Gravity},
+        {"JointAutoServo", State::JointAutoServo},
+        {"Zero", State::Zero},
+        {"Planning", State::Planning},
+        {"Gohome", State::Gohome},
+    };
+
+    auto it = states.find(cmd);
+    if (it == states.end()) {
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+void cmd_callback(const std_msgs::msg::String::SharedPtr msg)
+{
+    llarm6dof.cmd = msg->data;
+
+    if (auto state = parseStateCommand(msg->data)) {
+        mode_ = *state;
+        control_mode.modeTransition(mode_);
+        return;
+    }
+
+    if (msg->data == "load" || msg->data == "clearload") {
+        return; // 负载估计命令由阻抗控制分支处理
+    }
+
+    RCLCPP_WARN(this->get_logger(), "Unknown command: %s", msg->data.c_str());
+}
+\end{lstlisting}
+
+\textbf{验证方式：} 对每个模式发布一次命令，确认日志中的状态和实际运行分支一致。
+
+\subsection{P1-5 明确轨迹目标来源，避免内部轨迹和话题目标互相覆盖}
+
+\textbf{现象：} 主循环无条件调用 \verb|update_end_effector_trajectory|，而注释要求话题控制时必须关闭它。建议用枚举明确目标来源，而不是靠手动注释。
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+enum class TargetSource {
+    InternalTrajectory,
+    TopicPose,
+    TopicJoint,
+    Planner
+};
+
+TargetSource target_source_ = TargetSource::InternalTrajectory;
+
+void setTargetSource(TargetSource source)
+{
+    target_source_ = source;
+}
+
+void updateTarget(float realtime)
+{
+    switch (target_source_) {
+    case TargetSource::InternalTrajectory:
+        llarm6dof.update_end_effector_trajectory(realtime);
+        break;
+    case TargetSource::TopicPose:
+    case TargetSource::TopicJoint:
+    case TargetSource::Planner:
+        break; // 已由回调或规划器更新目标
+    }
+}
+\end{lstlisting}
+
+\textbf{验证方式：} 切换话题控制后，内部轨迹不再覆盖目标；切回内部轨迹后，目标由函数更新。
+
+\section{P2：可维护性和调试效率}
+
+\subsection{P2-1 发布末端状态和 TF，补齐观测闭环}
+
+\textbf{现象：} 当前已经创建了末端位姿、速度、力话题和 TF broadcaster，但发布语句大多被注释。建议启用并按左右臂命名。
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+void publishEndEffectorState(const LlArm6dof &arm,
+                             rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr pose_pub,
+                             rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twist_pub,
+                             rclcpp::Publisher<geometry_msgs::msg::Wrench>::SharedPtr wrench_pub)
+{
+    geometry_msgs::msg::Pose pose;
+    pose.position.x = arm.current_end_effector_frame.p.x();
+    pose.position.y = arm.current_end_effector_frame.p.y();
+    pose.position.z = arm.current_end_effector_frame.p.z();
+    arm.current_end_effector_frame.M.GetQuaternion(
+        pose.orientation.x, pose.orientation.y,
+        pose.orientation.z, pose.orientation.w);
+    pose_pub->publish(pose);
+
+    geometry_msgs::msg::Twist twist;
+    twist.linear.x = arm.current_end_effector_dot.vel.x();
+    twist.linear.y = arm.current_end_effector_dot.vel.y();
+    twist.linear.z = arm.current_end_effector_dot.vel.z();
+    twist.angular.x = arm.current_end_effector_dot.rot.x();
+    twist.angular.y = arm.current_end_effector_dot.rot.y();
+    twist.angular.z = arm.current_end_effector_dot.rot.z();
+    twist_pub->publish(twist);
+
+    geometry_msgs::msg::Wrench wrench;
+    wrench.force.x = arm.current_end_effector_wrench.force.x();
+    wrench.force.y = arm.current_end_effector_wrench.force.y();
+    wrench.force.z = arm.current_end_effector_wrench.force.z();
+    wrench.torque.x = arm.current_end_effector_wrench.torque.x();
+    wrench.torque.y = arm.current_end_effector_wrench.torque.y();
+    wrench.torque.z = arm.current_end_effector_wrench.torque.z();
+    wrench_pub->publish(wrench);
+}
+\end{lstlisting}
+
+\textbf{验证方式：} Foxglove/RViz 能同时看到左右臂 joint state、末端 pose、末端 twist、估计 wrench。
+
+\subsection{P2-2 把增益、限位、方向和串口参数移出硬编码}
+
+\textbf{现象：} 当前电机限位、PID 增益、串口名 \verb|/dev/ttyACM0|、波特率等写死在 C++ 代码中。双臂调试时建议放到 YAML 参数文件。
+
+\textbf{建议配置：}
+\begin{lstlisting}
+serial:
+  port: /dev/ttyACM0
+  baudrate: 921600
+
+left_arm:
+  motor_direction: [1, -1, 1, 1, 1, 1]
+  pos_limit_min: [-1.5, -1.3, -1.5, -1.5, -1.5, -1.57]
+  pos_limit_max: [1.5, 1.5, 1.5, 1.5, 1.5, 1.57]
+  default_kp: [350, 300, 280, 10, 0, 0]
+  default_kd: [1.9, 2.0, 2.0, 0.6, 0, 0]
+
+right_arm:
+  motor_direction: [1, -1, 1, 1, 1, 1]
+  pos_limit_min: [-1.5, -1.3, -1.5, -1.5, -1.5, -1.57]
+  pos_limit_max: [1.5, 1.5, 1.5, 1.5, 1.5, 1.57]
+\end{lstlisting}
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+this->declare_parameter<std::string>("serial.port", "/dev/ttyACM0");
+this->declare_parameter<int>("serial.baudrate", 921600);
+
+const auto port = this->get_parameter("serial.port").as_string();
+const auto baud = this->get_parameter("serial.baudrate").as_int();
+\end{lstlisting}
+
+\subsection{P2-3 增加通信超时 watchdog}
+
+\textbf{现象：} 当前下位机只根据 \verb|Is_USBget| 区分是否收到数据，但缺少持续超时失能策略。建议上位机和下位机都补 watchdog。
+
+\textbf{下位机建议代码：}
+\begin{lstlisting}[language=C]
+static uint32_t last_usb_tick = 0;
+
+// CDC_Receive_HS 中:
+last_usb_tick = HAL_GetTick();
+Is_USBget = 1;
+
+// main while 中:
+if ((HAL_GetTick() - last_usb_tick) > 100) {
+    fdcanx_send_data(&hfdcan1, 0x01, disable_data, 8);
+    fdcanx_send_data(&hfdcan1, 0x02, disable_data, 8);
+    fdcanx_send_data(&hfdcan1, 0x03, disable_data, 8);
+    fdcanx_send_data(&hfdcan1, 0x04, disable_data, 8);
+    fdcanx_send_data(&hfdcan1, 0x05, disable_data, 8);
+    fdcanx_send_data(&hfdcan1, 0x06, disable_data, 8);
+    fdcanx_send_data(&hfdcan2, 0x01, disable_data, 8);
+    fdcanx_send_data(&hfdcan2, 0x02, disable_data, 8);
+    fdcanx_send_data(&hfdcan2, 0x03, disable_data, 8);
+    fdcanx_send_data(&hfdcan2, 0x04, disable_data, 8);
+    fdcanx_send_data(&hfdcan2, 0x05, disable_data, 8);
+    fdcanx_send_data(&hfdcan2, 0x06, disable_data, 8);
+}
+\end{lstlisting}
+
+\subsection{P2-4 修正拼写和命令兼容}
+
+\textbf{现象：} 代码中存在 \verb|Impdence|、\verb|laod|、\verb|clearlaod| 等拼写。建议保留旧拼写兼容，但新接口使用正确命名。
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+if (cmd == "Impedance" || cmd == "Impdence") {
+    return State::Impdence; // 内部枚举可后续统一重命名
+}
+
+if (cmd == "load" || cmd == "laod") {
+    llarm6dof.cmd = "load";
+}
+
+if (cmd == "clearload" || cmd == "clearlaod") {
+    llarm6dof.cmd = "clearload";
+}
+\end{lstlisting}
+
+\section{P3：工程化完善}
+
+\subsection{P3-1 增加协议单元测试}
+
+\textbf{目的：} 防止 112 字节协议、CRC、左右臂槽位在后续改动中被破坏。
+
+\textbf{建议测试伪代码：}
+\begin{lstlisting}[language=C++]
+TEST(ProtocolPacking, DualArmPayloadLayout)
+{
+    MotorControl motor(serial);
+    MotorControl::ArmCommand left;
+    MotorControl::ArmCommand right;
+
+    left.pos[0] = 0.1f;
+    right.pos[0] = -0.2f;
+    left.gripper = 10;
+    right.gripper = 20;
+
+    auto payload = motor.packDualArmPayloadForTest(left, right);
+
+    ASSERT_EQ(payload.size(), 112);
+    EXPECT_EQ(payload[48], 10);
+    EXPECT_EQ(payload[104], 20);
+    EXPECT_NE(payload[0], payload[56]);
+}
+\end{lstlisting}
+
+\subsection{P3-2 建立仿真/无硬件模式}
+
+\textbf{目的：} 在没有 H7 和电机时也能测试 ROS2 话题、状态机和规划逻辑。
+
+\textbf{建议代码：}
+\begin{lstlisting}[language=C++]
+class ITransport {
+public:
+    virtual ~ITransport() = default;
+    virtual void send(const std::vector<uint8_t> &frame) = 0;
+    virtual std::vector<uint8_t> receive() = 0;
+};
+
+class SerialTransport final : public ITransport { /* real serial */ };
+class SimTransport final : public ITransport {
+public:
+    void send(const std::vector<uint8_t> &frame) override { last_frame_ = frame; }
+    std::vector<uint8_t> receive() override { return simulated_feedback_; }
+private:
+    std::vector<uint8_t> last_frame_;
+    std::vector<uint8_t> simulated_feedback_;
+};
+\end{lstlisting}
+
+\subsection{P3-3 补齐文档和启动文件}
+
+\textbf{建议补充：}
+\begin{itemize}[leftmargin=2em]
+  \item \verb|bringup_dual_arm.launch.py|：启动主控制节点、键鼠节点、foxglove bridge。
+  \item \verb|config/dual_arm.yaml|：集中配置串口、左右臂参数、限位、默认模式。
+  \item \verb|docs/protocol.md|：说明 112 字节 payload 的槽位布局。
+  \item \verb|docs/safety.md|：说明急停、零位校准、上电顺序、调试禁忌。
+\end{itemize}
+
+\section{推荐执行顺序}
+
+\begin{enumerate}[leftmargin=2em]
+  \item 先完成 P0-1 和 P0-2，修复下位机缓存和右臂下发。这是双臂实机安全底线。
+  \item 再完成 P0-3 和 P0-4，确保保护和状态切换不会留下危险状态。
+  \item 接着做 P1-1 和 P1-2，把上位机从 6 轴控制真正升级为 12 轴控制。
+  \item 然后做 P1-3、P1-4、P1-5，统一双臂话题、命令和轨迹来源。
+  \item 主链路稳定后做 P2/P3，提高调试效率、可观测性和长期维护质量。
+\end{enumerate}
+
+\section{最小闭环验收标准}
+
+完成 P0 和 P1 后，建议按以下标准验收：
+
+\begin{itemize}[leftmargin=2em]
+  \item 上位机能分别发布左臂/右臂关节目标，另一侧不受影响。
+  \item 下位机两条 FDCAN 总线收到不同的 6 电机指令。
+  \item 任意一侧位置、速度、力矩越界都会触发失能。
+  \item 串口断开或上位机停止发送超过设定时间，下位机进入安全态。
+  \item Foxglove/RViz 能看到左右臂 joint states 和末端位姿。
+\end{itemize}
+
+\end{document}
